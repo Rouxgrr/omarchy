@@ -103,8 +103,29 @@ run_helper() {
   OMARCHY_BRCMFMAC_DRIVER_PATH="$driver_path" \
     OMARCHY_BRCMFMAC_DEVICE_ROOT="$device_root" \
     OMARCHY_BRCMFMAC_SUSPEND_STATE="$state_file" \
+    OMARCHY_BRCMFMAC_KERNEL_RELEASE="${KERNEL_RELEASE:-7.2.11-1-omarchy}" \
     "$helper" "$@"
 }
+
+for release in 7.2.10-1-omarchy 7.2.8-5-omarchy 7.1.12-arch1-1 7.3.0-rc6-1-mainline 7.3-rc6 7.3.0rc6 7.3.0-070300rc6-generic; do
+  reset_pci
+  setup_device "$pci_address" "0x43ba"
+  KERNEL_RELEASE="$release" run_helper pre 2>/dev/null ||
+    fail "the pre-sleep helper does not block sleep on an unfixed kernel" "$release"
+  [[ ! -s $driver_path/unbind ]] ||
+    fail "the pre-sleep helper leaves Wi-Fi bound on a kernel without the brcmfmac fix" "$release"
+  [[ ! -e $state_file ]] || fail "an unfixed kernel leaves nothing for post to rebind" "$release"
+done
+pass "kernels without the brcmfmac P2P removal fix are never unbound"
+
+for release in 7.2.11-1-omarchy 7.2.11-arch1-1 7.2.12 7.3.1-arch1-1 8.0.0; do
+  reset_pci
+  setup_device "$pci_address" "0x43ba"
+  KERNEL_RELEASE="$release" run_helper pre
+  [[ $(<"$driver_path/unbind") == "$pci_address" ]] ||
+    fail "the pre-sleep helper unbinds on a kernel with the brcmfmac fix" "$release"
+done
+pass "kernels with the brcmfmac P2P removal fix are unbound"
 
 reset_pci
 setup_device "$pci_address" "0x43ba"
