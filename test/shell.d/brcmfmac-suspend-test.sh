@@ -152,6 +152,19 @@ fi
 rm -f "$state_file"
 pass "failed recovery remains visible and retryable"
 
+reset_pci
+setup_device "$pci_address" "0x43ba"
+rm -f "$driver_path/$pci_address" "$device_root/$pci_address/driver"
+run_helper pre
+[[ ! -s $driver_path/unbind ]] || fail "the pre-sleep helper does not unbind a device that is already unbound"
+[[ $(<"$state_file") == "$pci_address" ]] ||
+  fail "the pre-sleep helper records a device left unbound by an earlier wake"
+run_helper post
+[[ $(<"$driver_path/bind") == "$pci_address" ]] ||
+  fail "the post-wake helper binds a device left unbound by an earlier wake"
+[[ ! -e $state_file ]] || fail "the post-wake helper clears its state after recovering a leftover device"
+pass "a device left unbound by an earlier wake is bound again after the next sleep"
+
 other_address="0000:02:00.0"
 reset_pci
 setup_device "$other_address" "0x4464"
